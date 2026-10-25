@@ -50,7 +50,7 @@ from sqlalchemy.orm import (
     sessionmaker,
 )
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-     
+
 # --------------------------------------------------------------------------- #
 # Configuration
 # --------------------------------------------------------------------------- #
@@ -60,20 +60,17 @@ DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{DB_FILE}")
 JWT_SECRET = os.environ.get("JWT_SECRET", "change-this-secret-before-public-use")
 TOKEN_DAYS = 30
 
-# Local timezone used for "today" when the client omits the date.
 try:
     APP_TZ = ZoneInfo(os.environ.get("APP_TIMEZONE", "Asia/Tehran"))
-except ZoneInfoNotFoundError:  # pragma: no cover - only if tzdata is missing
+except ZoneInfoNotFoundError:
     APP_TZ = timezone.utc
 
-# Upper bounds guarding against absurd/overflowing input values.
 MAX_CALORIES = 100_000.0
 MAX_AMOUNT = 100_000.0
 MAX_FOODS_PER_MEAL = 100
 MIN_DATE = date(1900, 1, 1)
 MAX_DATE = date(2100, 12, 31)
 
-# Persian and Arabic-Indic digits -> ASCII.
 DIGIT_MAP = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 NUMBER_RE = re.compile(r"\d+(?:\.\d+)?")
 
@@ -84,11 +81,6 @@ app = FastAPI(title="Food Diary API", version="1.0")
 
 def local_now() -> datetime:
     return datetime.now(APP_TZ)
-
-
-# --------------------------------------------------------------------------- #
-# Database: engine, ORM models, session handling
-# --------------------------------------------------------------------------- #
 
 
 class Base(DeclarativeBase):
@@ -107,6 +99,7 @@ class User(Base):
     weight = mapped_column(Integer, nullable=False)
     name = mapped_column(Text, nullable=False)
     birth_year = mapped_column(Integer, nullable=False)
+    activity_level = mapped_column(Integer, nullable=False, default=3)
 
 
 class Meal(Base):
@@ -140,7 +133,6 @@ Index("idx_meal_items_meal_id", MealItem.meal_id)
 
 
 def _set_sqlite_pragmas(dbapi_connection, _connection_record):
-    """Enable foreign keys on every SQLite connection."""
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA foreign_keys = ON")
     cursor.close()
@@ -151,9 +143,6 @@ event.listen(engine, "connect", _set_sqlite_pragmas)
 
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False, future=True)
 
-
-# --- Catalog foods (supplied table has no PK, so its SQLite `rowid` is the ID) ---
-# Reflected lazily/thread-safely because the table may not exist until init_db().
 _foods_md = MetaData()
 _foods: Optional[Table] = None
 _foods_lock = threading.Lock()
@@ -170,7 +159,6 @@ def foods_table() -> Table:
 
 
 def reset_reflection() -> None:
-    """Drop the cached catalog reflection (used after switching databases)."""
     global _foods
     _foods = None
     _foods_md.clear()
@@ -181,7 +169,6 @@ def food_columns() -> set[str]:
 
 
 def food_id_col():
-    """The ID expression for the catalog: `id` if present, else `rowid`."""
     t = foods_table()
     return t.c.id if "id" in t.c else literal_column("rowid")
 
@@ -197,7 +184,6 @@ def food_calories_col():
 
 
 def get_session() -> Iterator[Session]:
-    """FastAPI dependency that yields a session and closes it afterwards."""
     session = SessionLocal()
     try:
         yield session
@@ -207,7 +193,6 @@ def get_session() -> Iterator[Session]:
 
 @contextmanager
 def session_scope() -> Iterator[Session]:
-    """Transactional scope: commit on success, rollback on error."""
     session = SessionLocal()
     try:
         yield session
@@ -235,7 +220,6 @@ def _column_names(conn, table: str) -> set[str]:
 
 
 def _rebuild_users_with_gender_check(conn) -> None:
-    """Recreate `users` with the gender CHECK if an old table lacks it."""
     users_sql = conn.execute(
         text("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'")
     ).scalar() or ""
@@ -258,7 +242,6 @@ def _rebuild_users_with_gender_check(conn) -> None:
 
 
 def _migrate_legacy_meals(conn) -> None:
-    """Convert the legacy flat meals table (one row per food) to header+items."""
     cols = _column_names(conn, "meals")
     if not cols or "food_name" not in cols:
         return
@@ -300,14 +283,7 @@ def _migrate_legacy_meals(conn) -> None:
 
 
 def init_db() -> None:
-    """Create tables and run the pre-existing schema migrations.
-
-    Mirrors the original hand-written bootstrap so existing `food.db` files keep
-    working untouched, then ensures any missing tables/columns/indexes exist.
-    """
     with engine.connect() as conn:
-        # Migrations rebuild tables via RENAME; disable FK enforcement while they
-        # run, then re-check integrity before committing.
         conn.exec_driver_sql("PRAGMA foreign_keys = OFF")
         try:
             if not _table_exists(conn, "foods"):
@@ -317,8 +293,11 @@ def init_db() -> None:
                         calories REAL NOT NULL)"""
                 )
             _rebuild_users_with_gender_check(conn)
+            if "activity_level" not in _column_names(conn, "users"):
+                conn.exec_driver_sql(
+                    "ALTER TABLE users ADD COLUMN activity_level INTEGER NOT NULL DEFAULT 3"
+                )
             _migrate_legacy_meals(conn)
-            # Create any still-missing tables (meals, meal_items, index).
             Base.metadata.create_all(conn)
             if "calories_cached" not in _column_names(conn, "foods"):
                 conn.exec_driver_sql("ALTER TABLE foods ADD COLUMN calories_cached REAL")
@@ -329,13 +308,10 @@ def init_db() -> None:
             raise
         finally:
             conn.exec_driver_sql("PRAGMA foreign_keys = ON")
-    # Reflect the catalog eagerly (single-threaded, at startup) so the first
-    # concurrent requests never race to build the reflection.
     foods_table()
 
 
 def configure(url: str) -> None:
-    """Rebind the engine/session to a different database URL (used by tests)."""
     global engine, SessionLocal
     engine.dispose()
     engine = create_engine(url, future=True)
@@ -383,7 +359,6 @@ def current_user(authorization: Optional[str] = Header(None)) -> int:
 
 
 def existing_user(user_id: int = Depends(current_user), session: Session = Depends(get_session)) -> int:
-    """Like current_user, but also rejects tokens whose user no longer exists."""
     if session.get(User, user_id) is None:
         raise HTTPException(401, "کاربر این توکن دیگر وجود ندارد")
     return user_id
@@ -419,6 +394,7 @@ class RegisterIn(BaseModel):
     weight: StrictInt = Field(gt=0, le=700)
     name: StrictStr = Field(min_length=1, max_length=100)
     birth_year: StrictInt = Field(gt=1900, le=date.today().year)
+    activity_level: StrictInt = Field(3, ge=1, le=5)
 
 
 class LoginIn(BaseModel):
@@ -432,13 +408,14 @@ class ProfileUpdate(BaseModel):
     height: Optional[StrictInt] = Field(None, gt=0, le=300)
     weight: Optional[StrictInt] = Field(None, gt=0, le=700)
     age: Optional[StrictInt] = Field(None, gt=0, le=130)
+    gender: Optional[StrictInt] = Field(None, ge=0, le=1)
+    activity_level: Optional[StrictInt] = Field(None, ge=1, le=5)
 
 
 class MealItemIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     food_id: StrictInt = Field(ge=0, le=2**31 - 1)
     amount: StrictFloat = Field(gt=0, le=MAX_AMOUNT, allow_inf_nan=False)
-    # Required for a custom food (food_id=0)
     calories: Optional[StrictFloat] = Field(None, ge=0, le=MAX_CALORIES, allow_inf_nan=False)
     name: Optional[StrictStr] = Field(None, max_length=100)
     unit: Optional[StrictStr] = Field(None, max_length=32)
@@ -448,7 +425,6 @@ class MealIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     meal_id: StrictInt = Field(ge=1, le=4, description="1 breakfast, 2 lunch, 3 dinner, 4 snack")
     foods: list[MealItemIn] = Field(min_length=1, max_length=MAX_FOODS_PER_MEAL)
-    # Defaults to today's date when omitted.
     meal_date: Optional[date] = Field(None, alias="date", ge=MIN_DATE, le=MAX_DATE)
 
 
@@ -458,12 +434,6 @@ class MealIn(BaseModel):
 
 
 def parse_calories(raw) -> Optional[float]:
-    """Extract a calorie number from messy catalog values.
-
-    Handles ASCII/Persian/Arabic digits and formats like "300-500" or
-    "450 تا 500 کالری" (averaging a range). Returns None when no number
-    is present (e.g. "-").
-    """
     text = str(raw).translate(DIGIT_MAP).replace(",", "")
     numbers = [float(n) for n in NUMBER_RE.findall(text)]
     if not numbers:
@@ -473,7 +443,6 @@ def parse_calories(raw) -> Optional[float]:
 
 
 def search_food(session: Session, value: str) -> list[dict]:
-    """Look up catalog food rows by exact ID (numeric) or name (LIKE)."""
     id_col = food_id_col().label("id")
     name_col = food_name_col().label("name")
     cal_col = food_calories_col().label("calories")
@@ -499,7 +468,6 @@ def set_food_cached_calories(session: Session, food_id: int, value: float) -> No
 
 
 def resolve_food(session: Session, item: MealItemIn) -> tuple[int, str, float, float, str]:
-    """Return (food_id, name, calories, amount, unit) for a submitted meal item."""
     if item.food_id == 0:
         if item.name is None or not item.name.strip() or item.calories is None or item.unit is None or not item.unit.strip():
             raise HTTPException(422, "برای غذای دلخواه name، calories و unit لازم است")
@@ -544,6 +512,20 @@ def serialize_meal(session: Session, meal: Meal) -> dict:
     }
 
 
+def _serialize_user(user: User) -> dict:
+    return {
+        "id": user.id,
+        "phone": user.phone,
+        "name": user.name,
+        "gender": user.gender,
+        "height": user.height,
+        "weight": user.weight,
+        "birth_year": user.birth_year,
+        "activity_level": user.activity_level,
+        "age": date.today().year - user.birth_year,
+    }
+
+
 # --------------------------------------------------------------------------- #
 # Endpoints
 # --------------------------------------------------------------------------- #
@@ -554,6 +536,7 @@ def register(data: RegisterIn, session: Session = Depends(get_session)):
     user = User(
         phone=data.phone, password_hash=hash_password(data.password), gender=data.gender,
         height=data.height, weight=data.weight, name=data.name, birth_year=data.birth_year,
+        activity_level=data.activity_level,
     )
     session.add(user)
     try:
@@ -580,10 +563,15 @@ def get_me(user_id: int = Depends(existing_user), session: Session = Depends(get
     user = session.get(User, user_id)
     if user is None:
         raise HTTPException(404, "کاربر پیدا نشد")
-    return {
-        "id": user.id, "phone": user.phone, "name": user.name, "gender": user.gender,
-        "height": user.height, "weight": user.weight, "birth_year": user.birth_year,
-    }
+    return _serialize_user(user)
+
+
+@app.get("/profile")
+def get_profile(user_id: int = Depends(existing_user), session: Session = Depends(get_session)):
+    user = session.get(User, user_id)
+    if user is None:
+        raise HTTPException(404, "کاربر پیدا نشد")
+    return _serialize_user(user)
 
 
 @app.patch("/profile")
@@ -600,10 +588,7 @@ def update_profile(data: ProfileUpdate, user_id: int = Depends(existing_user), s
         setattr(user, key, value)
     session.commit()
     session.refresh(user)
-    return {
-        "id": user.id, "phone": user.phone, "name": user.name, "gender": user.gender,
-        "height": user.height, "weight": user.weight, "birth_year": user.birth_year,
-    }
+    return _serialize_user(user)
 
 
 @app.get("/foods")
@@ -622,15 +607,12 @@ def foods_search(q: str = Query(min_length=1, max_length=100), session: Session 
 
 @app.post("/meals", status_code=201)
 def add_meal(data: MealIn, response: Response, user_id: int = Depends(existing_user), session: Session = Depends(get_session)):
-    """Create or fully replace the (user, date, meal_type) meal with this payload."""
     now = local_now().isoformat()
     day = (data.meal_date or local_now().date()).isoformat()
-    # Validate/resolve every submitted food before touching the database.
     resolved = [resolve_food(session, item) for item in data.foods]
     existed = session.execute(
         select(Meal.id).where(Meal.user_id == user_id, Meal.date == day, Meal.meal_type == data.meal_id)
     ).first() is not None
-    # Upsert in one statement so concurrent requests cannot race on the UNIQUE constraint.
     stmt = (
         sqlite_insert(Meal)
         .values(user_id=user_id, date=day, meal_type=data.meal_id, created_at=now, updated_at=now)
@@ -638,7 +620,6 @@ def add_meal(data: MealIn, response: Response, user_id: int = Depends(existing_u
         .returning(Meal)
     )
     meal = session.execute(stmt).scalar_one()
-    # Replace-on-post: drop the previous items so the meal matches the latest payload exactly.
     session.execute(delete(MealItem).where(MealItem.meal_id == meal.id))
     for food_id, name, calories, amount, unit in resolved:
         session.add(MealItem(meal_id=meal.id, food_id=food_id, food_name=name, calories=calories, amount=amount, unit=unit))
@@ -646,7 +627,6 @@ def add_meal(data: MealIn, response: Response, user_id: int = Depends(existing_u
     session.refresh(meal)
     result = serialize_meal(session, meal)
     session.commit()
-    # 200 when the meal already existed and was replaced, 201 when newly created.
     if existed:
         response.status_code = 200
     return result
@@ -720,7 +700,11 @@ def _run_self_tests() -> int:
 
     headers = auth("09550000010")
     check("me ok", client.get("/me", headers=headers).status_code == 200)
+    check("profile ok", client.get("/profile", headers=headers).status_code == 200)
+    check("profile has activity_level", client.get("/profile", headers=headers).json().get("activity_level") is not None)
+    check("profile has age", client.get("/profile", headers=headers).json().get("age") is not None)
     check("profile patch ok", client.patch("/profile", headers=headers, json={"weight": 75}).status_code == 200)
+    check("profile patch activity_level", client.patch("/profile", headers=headers, json={"activity_level": 4}).json().get("activity_level") == 4)
     check("profile empty 400", client.patch("/profile", headers=headers, json={}).status_code == 400)
 
     print("== foods ==")
@@ -822,6 +806,7 @@ def _run_self_tests() -> int:
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     check("expected tables", {"users", "foods", "meals", "meal_items"} <= tables)
     check("users gender check", "gender IN (0,1)" in (conn.execute("SELECT sql FROM sqlite_master WHERE name='users'").fetchone()[0]))
+    check("users activity_level column", "activity_level" in {r[1] for r in conn.execute("PRAGMA table_info(users)")})
     check("meals unique constraint", "UNIQUE(user_id, date, meal_type)" in (conn.execute("SELECT sql FROM sqlite_master WHERE name='meals'").fetchone()[0]))
     check("foods cache column", "calories_cached" in {r[1] for r in conn.execute("PRAGMA table_info(foods)")})
     check("no FK violations", conn.execute("PRAGMA foreign_key_check").fetchall() == [])
@@ -850,6 +835,7 @@ def _run_self_tests() -> int:
     check("legacy migrated to 1 header", lc.execute("SELECT COUNT(*) FROM meals").fetchone()[0] == 1)
     check("legacy migrated to 2 items", lc.execute("SELECT COUNT(*) FROM meal_items").fetchone()[0] == 2)
     check("legacy gender coerced", lc.execute("SELECT gender FROM users").fetchone()[0] == 0)
+    check("legacy activity_level added", "activity_level" in {r[1] for r in lc.execute("PRAGMA table_info(users)")})
     check("legacy FK clean", lc.execute("PRAGMA foreign_key_check").fetchall() == [])
 
     shutil.rmtree(tmpdir, ignore_errors=True)
