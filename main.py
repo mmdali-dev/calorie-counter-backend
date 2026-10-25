@@ -29,6 +29,8 @@ except ZoneInfoNotFoundError:  # pragma: no cover - only if tzdata is missing
 # Upper bounds guarding against absurd/overflowing input values.
 MAX_CALORIES = 100_000.0
 MAX_AMOUNT = 100_000.0
+MAX_FOODS_PER_MEAL = 100
+MIN_DATE = date(1900, 1, 1)
 app = FastAPI(title="Food Diary API", version="1.0")
 
 # Persian (۰-۹) and Arabic-Indic (٠-٩) digits -> ASCII.
@@ -174,6 +176,15 @@ def current_user(authorization: Optional[str] = Header(None)) -> int:
         raise HTTPException(401, "توکن نامعتبر یا منقضی است")
 
 
+def existing_user(user_id: int = Depends(current_user)) -> int:
+    """Like current_user, but also rejects tokens whose user no longer exists."""
+    with connect() as c:
+        row = c.execute("SELECT 1 FROM users WHERE id=?", (user_id,)).fetchone()
+    if row is None:
+        raise HTTPException(401, "کاربر این توکن دیگر وجود ندارد")
+    return user_id
+
+
 def hash_password(password: str) -> str:
     salt = secrets.token_bytes(16)
     hashed = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 200_000)
@@ -192,44 +203,44 @@ def verify_password(password: str, stored: str) -> bool:
 
 class RegisterIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    phone: StrictStr = Field(min_length=1)
-    password: StrictStr = Field(min_length=1)
+    phone: StrictStr = Field(min_length=1, max_length=32)
+    password: StrictStr = Field(min_length=1, max_length=256)
     gender: StrictInt = Field(ge=0, le=1)
-    height: StrictInt = Field(gt=0)
-    weight: StrictInt = Field(gt=0)
-    name: StrictStr = Field(min_length=1)
+    height: StrictInt = Field(gt=0, le=300)
+    weight: StrictInt = Field(gt=0, le=700)
+    name: StrictStr = Field(min_length=1, max_length=100)
     birth_year: StrictInt = Field(gt=1900, le=date.today().year)
 
 
 class LoginIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    phone: StrictStr = Field(min_length=1)
-    password: StrictStr = Field(min_length=1)
+    phone: StrictStr = Field(min_length=1, max_length=32)
+    password: StrictStr = Field(min_length=1, max_length=256)
 
 
 class ProfileUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    height: Optional[StrictInt] = Field(None, gt=0)
-    weight: Optional[StrictInt] = Field(None, gt=0)
+    height: Optional[StrictInt] = Field(None, gt=0, le=300)
+    weight: Optional[StrictInt] = Field(None, gt=0, le=700)
     age: Optional[StrictInt] = Field(None, gt=0, le=130)
 
 
 class MealItemIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    food_id: StrictInt = Field(ge=0)
+    food_id: StrictInt = Field(ge=0, le=2**31 - 1)
     amount: StrictFloat = Field(gt=0, le=MAX_AMOUNT, allow_inf_nan=False)
     # Required for a custom food (food_id=0)
     calories: Optional[StrictFloat] = Field(None, ge=0, le=MAX_CALORIES, allow_inf_nan=False)
-    name: Optional[StrictStr] = None
-    unit: Optional[StrictStr] = None
+    name: Optional[StrictStr] = Field(None, max_length=100)
+    unit: Optional[StrictStr] = Field(None, max_length=32)
 
 
 class MealIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     meal_id: StrictInt = Field(ge=1, le=4, description="1 breakfast, 2 lunch, 3 dinner, 4 snack")
-    foods: list[MealItemIn] = Field(min_length=1)
+    foods: list[MealItemIn] = Field(min_length=1, max_length=MAX_FOODS_PER_MEAL)
     # Defaults to today's date when omitted.
-    meal_date: Optional[date] = Field(None, alias="date")
+    meal_date: Optional[date] = Field(None, alias="date", ge=MIN_DATE, le=date(2100, 12, 31))
 
 
 MEAL_NAMES = {1: "breakfast", 2: "lunch", 3: "dinner", 4: "snack"}
@@ -258,7 +269,7 @@ def login(data: LoginIn):
 
 
 @app.get("/me")
-def get_me(user_id: int = Depends(current_user)):
+def get_me(user_id: int = Depends(existing_user)):
     with connect() as c:
         row = c.execute("SELECT id,phone,name,gender,height,weight,birth_year FROM users WHERE id=?", (user_id,)).fetchone()
     if not row:
@@ -267,7 +278,7 @@ def get_me(user_id: int = Depends(current_user)):
 
 
 @app.patch("/profile")
-def update_profile(data: ProfileUpdate, user_id: int = Depends(current_user)):
+def update_profile(data: ProfileUpdate, user_id: int = Depends(existing_user)):
     changes = data.model_dump(exclude_unset=True, exclude_none=True)
     if not changes:
         raise HTTPException(400, "حداقل یک مورد برای تغییر ارسال کنید")
@@ -277,6 +288,8 @@ def update_profile(data: ProfileUpdate, user_id: int = Depends(current_user)):
         assignments = ",".join(f"{key}=?" for key in changes)
         c.execute(f"UPDATE users SET {assignments} WHERE id=?", (*changes.values(), user_id))
         row = c.execute("SELECT id,phone,name,gender,height,weight,birth_year FROM users WHERE id=?", (user_id,)).fetchone()
+    if row is None:
+        raise HTTPException(404, "کاربر پیدا نشد")
     return dict(row)
 
 
@@ -322,7 +335,7 @@ def list_foods(limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge
 
 
 @app.get("/foods/search")
-def foods_search(q: str = Query(min_length=1)):
+def foods_search(q: str = Query(min_length=1, max_length=100)):
     with connect() as c:
         return search_food(c, q)
 
@@ -372,7 +385,7 @@ def serialize_meal(c, meal_row):
 
 
 @app.post("/meals", status_code=201)
-def add_meal(data: MealIn, response: Response, user_id: int = Depends(current_user)):
+def add_meal(data: MealIn, response: Response, user_id: int = Depends(existing_user)):
     """Create or fully replace the (user, date, meal_type) meal with this payload."""
     now = local_now().isoformat()
     day = (data.meal_date or local_now().date()).isoformat()
@@ -404,7 +417,7 @@ def add_meal(data: MealIn, response: Response, user_id: int = Depends(current_us
 
 
 @app.get("/meals")
-def get_meals(day: Optional[date] = Query(None), user_id: int = Depends(current_user)):
+def get_meals(day: Optional[date] = Query(None), user_id: int = Depends(existing_user)):
     with connect() as c:
         if day:
             rows = c.execute("SELECT * FROM meals WHERE user_id=? AND date=? ORDER BY meal_type",
