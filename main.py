@@ -154,6 +154,15 @@ def login(data: LoginIn):
     return {"access_token": create_token(user["id"]), "token_type": "bearer"}
 
 
+@app.get("/me")
+def get_me(user_id: int = Depends(current_user)):
+    with db() as c:
+        row = c.execute("SELECT id,phone,name,gender,height,weight,birth_year FROM users WHERE id=?", (user_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "کاربر پیدا نشد")
+    return dict(row)
+
+
 @app.patch("/profile")
 def update_profile(data: ProfileUpdate, user_id: int = Depends(current_user)):
     changes = data.model_dump(exclude_unset=True, exclude_none=True)
@@ -251,5 +260,5 @@ def root():
 
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
