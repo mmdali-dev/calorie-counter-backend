@@ -247,3 +247,9 @@ def get_meals(day: Optional[date] = Query(None), user_id: int = Depends(current_
 @app.get("/")
 def root():
     return {"message": "Food Diary API", "docs": "/docs"}
+
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
