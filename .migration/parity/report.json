@@ -1,0 +1,12 @@
+{
+  "completed": true,
+  "checks": 2322,
+  "failures": 0,
+  "details": [],
+  "reference_versions": {
+    "fastapi": "0.133.1",
+    "pydantic": "2.13.4",
+    "sqlalchemy": "2.1.6",
+    "httpx": "0.28.1"
+  }
+}

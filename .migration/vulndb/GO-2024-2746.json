@@ -1,0 +1,77 @@
+{
+  "schema_version": "1.3.1",
+  "id": "GO-2024-2746",
+  "modified": "0001-01-01T00:00:00Z",
+  "published": "0001-01-01T00:00:00Z",
+  "aliases": [
+    "CVE-2024-3177",
+    "GHSA-pxhw-596r-rwq5"
+  ],
+  "summary": "Kubernetes allows bypassing mountable secrets policy imposed by the ServiceAccount admission plugin in k8s.io/kubernetes",
+  "details": "Kubernetes allows bypassing mountable secrets policy imposed by the ServiceAccount admission plugin in k8s.io/kubernetes",
+  "affected": [
+    {
+      "package": {
+        "name": "k8s.io/kubernetes",
+        "ecosystem": "Go"
+      },
+      "ranges": [
+        {
+          "type": "SEMVER",
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "1.27.13"
+            },
+            {
+              "introduced": "1.28.0"
+            },
+            {
+              "fixed": "1.28.9"
+            },
+            {
+              "introduced": "1.29.0"
+            },
+            {
+              "fixed": "1.29.4"
+            }
+          ]
+        }
+      ],
+      "ecosystem_specific": {
+        "imports": [
+          {
+            "path": "k8s.io/kubernetes/plugin/pkg/admission/serviceaccount",
+            "symbols": [
+              "Plugin.limitSecretReferences"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "references": [
+    {
+      "type": "ADVISORY",
+      "url": "https://github.com/advisories/GHSA-pxhw-596r-rwq5"
+    },
+    {
+      "type": "FIX",
+      "url": "https://github.com/kubernetes/kubernetes/commit/7c861b1ecad97e1ab9332c970c9294a72065111a"
+    },
+    {
+      "type": "WEB",
+      "url": "https://github.com/kubernetes/kubernetes/issues/124336"
+    },
+    {
+      "type": "WEB",
+      "url": "https://groups.google.com/g/kubernetes-security-announce/c/JxjHf7fkVd8/m/oVCzypyOAQAJ"
+    }
+  ],
+  "database_specific": {
+    "url": "https://pkg.go.dev/vuln/GO-2024-2746",
+    "review_status": "REVIEWED"
+  }
+}

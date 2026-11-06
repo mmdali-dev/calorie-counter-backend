@@ -1,0 +1,78 @@
+{
+  "schema_version": "1.3.1",
+  "id": "GO-2024-2575",
+  "modified": "0001-01-01T00:00:00Z",
+  "published": "0001-01-01T00:00:00Z",
+  "aliases": [
+    "CVE-2024-26147",
+    "GHSA-r53h-jv2g-vpx6"
+  ],
+  "summary": "Helm's Missing YAML Content Leads To Panic in helm.sh/helm/v3",
+  "details": "Helm's Missing YAML Content Leads To Panic in helm.sh/helm/v3",
+  "affected": [
+    {
+      "package": {
+        "name": "helm.sh/helm/v3",
+        "ecosystem": "Go"
+      },
+      "ranges": [
+        {
+          "type": "SEMVER",
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "3.14.2"
+            }
+          ]
+        }
+      ],
+      "ecosystem_specific": {
+        "imports": [
+          {
+            "path": "helm.sh/helm/v3/pkg/plugin",
+            "symbols": [
+              "FindPlugins",
+              "LoadAll",
+              "LoadDir",
+              "validatePluginData"
+            ]
+          },
+          {
+            "path": "helm.sh/helm/v3/pkg/repo",
+            "symbols": [
+              "ChartRepository.DownloadIndexFile",
+              "ChartRepository.Load",
+              "FindChartInAuthAndTLSAndPassRepoURL",
+              "FindChartInAuthAndTLSRepoURL",
+              "FindChartInAuthRepoURL",
+              "FindChartInRepoURL",
+              "LoadIndexFile",
+              "loadIndex"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "references": [
+    {
+      "type": "ADVISORY",
+      "url": "https://github.com/helm/helm/security/advisories/GHSA-r53h-jv2g-vpx6"
+    },
+    {
+      "type": "FIX",
+      "url": "https://github.com/helm/helm/commit/bb4cc9125503a923afb7988f3eb478722a8580af"
+    }
+  ],
+  "credits": [
+    {
+      "name": "Jakub Ciolek at AlphaSense"
+    }
+  ],
+  "database_specific": {
+    "url": "https://pkg.go.dev/vuln/GO-2024-2575",
+    "review_status": "REVIEWED"
+  }
+}

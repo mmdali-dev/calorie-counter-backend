@@ -1,0 +1,77 @@
+{
+  "schema_version": "1.3.1",
+  "id": "GO-2024-2529",
+  "modified": "0001-01-01T00:00:00Z",
+  "published": "0001-01-01T00:00:00Z",
+  "aliases": [
+    "GHSA-pm3m-32r3-7mfh"
+  ],
+  "summary": "Etcd embed auto compaction retention negative value causing a compaction loop or a crash in go.etcd.io/etcd",
+  "details": "Etcd embed auto compaction retention negative value causing a compaction loop or a crash in go.etcd.io/etcd",
+  "affected": [
+    {
+      "package": {
+        "name": "go.etcd.io/etcd",
+        "ecosystem": "Go"
+      },
+      "ranges": [
+        {
+          "type": "SEMVER",
+          "events": [
+            {
+              "introduced": "0"
+            }
+          ]
+        }
+      ],
+      "ecosystem_specific": {}
+    },
+    {
+      "package": {
+        "name": "go.etcd.io/etcd/v3",
+        "ecosystem": "Go"
+      },
+      "ranges": [
+        {
+          "type": "SEMVER",
+          "events": [
+            {
+              "introduced": "0"
+            }
+          ]
+        }
+      ],
+      "ecosystem_specific": {
+        "custom_ranges": [
+          {
+            "type": "ECOSYSTEM",
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "3.3.23"
+              },
+              {
+                "introduced": "3.4.0-rc.0"
+              },
+              {
+                "fixed": "3.4.10"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "references": [
+    {
+      "type": "ADVISORY",
+      "url": "https://github.com/etcd-io/etcd/security/advisories/GHSA-pm3m-32r3-7mfh"
+    }
+  ],
+  "database_specific": {
+    "url": "https://pkg.go.dev/vuln/GO-2024-2529",
+    "review_status": "REVIEWED"
+  }
+}

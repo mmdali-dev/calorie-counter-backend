@@ -1,0 +1,78 @@
+{
+  "environment": {
+    "platform": "Windows-10-10.0.26300-SP0",
+    "python": "3.11.15",
+    "timestamp": "2026-11-06T23:25:37+0330"
+  },
+  "note": "Local HTTP microbenchmark, 8 concurrent clients, one Python/Uvicorn process; not a production load or capacity guarantee. Both use private SQLite copies with the same journal mode. Client overhead is included.",
+  "results": {
+    "python": {
+      "foods_100": {
+        "requests": 400,
+        "concurrency": 8,
+        "requests_per_second": 342.8,
+        "median_ms": 23.26,
+        "p95_ms": 27.55,
+        "errors": 0
+      },
+      "profile": {
+        "requests": 400,
+        "concurrency": 8,
+        "requests_per_second": 726.5,
+        "median_ms": 10.57,
+        "p95_ms": 12.97,
+        "errors": 0
+      },
+      "meals_40_with_120_items": {
+        "requests": 300,
+        "concurrency": 8,
+        "requests_per_second": 72.4,
+        "median_ms": 109.99,
+        "p95_ms": 123.3,
+        "errors": 0
+      },
+      "replace_meal": {
+        "requests": 120,
+        "concurrency": 8,
+        "requests_per_second": 129.3,
+        "median_ms": 5.56,
+        "p95_ms": 173.97,
+        "errors": 0
+      }
+    },
+    "go": {
+      "foods_100": {
+        "requests": 400,
+        "concurrency": 8,
+        "requests_per_second": 2049.5,
+        "median_ms": 3.41,
+        "p95_ms": 6.64,
+        "errors": 0
+      },
+      "profile": {
+        "requests": 400,
+        "concurrency": 8,
+        "requests_per_second": 2093.7,
+        "median_ms": 3.53,
+        "p95_ms": 5.84,
+        "errors": 0
+      },
+      "meals_40_with_120_items": {
+        "requests": 300,
+        "concurrency": 8,
+        "requests_per_second": 1754.7,
+        "median_ms": 4.23,
+        "p95_ms": 6.49,
+        "errors": 0
+      },
+      "replace_meal": {
+        "requests": 120,
+        "concurrency": 8,
+        "requests_per_second": 357.1,
+        "median_ms": 20.86,
+        "p95_ms": 37.89,
+        "errors": 0
+      }
+    }
+  }
+}

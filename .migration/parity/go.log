@@ -1,0 +1,8 @@
+2026/11/06 23:29:11 Food Diary API listening on 127.0.0.1:63486; Swagger: /docs
+2026/11/06 23:29:11 request failed: GET /foods/search (*errors.errorString)
+2026/11/06 23:29:11 request failed: GET /foods (*errors.errorString)
+2026/11/06 23:29:14 request failed: PATCH /profile (*main.apiError)
+2026/11/06 23:29:14 request failed: PATCH /profile (*main.apiError)
+2026/11/06 23:29:14 request failed: PATCH /profile (*main.apiError)
+2026/11/06 23:29:15 request failed: PATCH /profile (*main.apiError)
+2026/11/06 23:29:15 request failed: PATCH /profile (*main.apiError)

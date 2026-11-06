@@ -1,0 +1,6 @@
+{
+  "repository": "golang/vulndb",
+  "commit": "e22db6528018f9725b3230c4e6429c791f40bb15",
+  "records": 4789,
+  "archive_sha256": "441b128b9477cdf75adbcb1274a1e9970aa81e9e37f532839fb4031a3112b2e3"
+}
