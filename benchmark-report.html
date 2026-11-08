@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>گزارش بنچمارک — Food Diary API (Go vs Python)</title>
+<style>
+  :root {
+    --ink: #0f172a;
+    --muted: #64748b;
+    --line: #e2e8f0;
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --go: #15803d;
+    --go-soft: #dcfce7;
+    --py: #b45309;
+    --py-soft: #fef3c7;
+    --accent: #1e3a8a;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Vazirmatn", "Segoe UI", Tahoma, "Iranian Sans", sans-serif;
+    font-size: 15px;
+    line-height: 1.75;
+  }
+
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 32px 24px 64px;
+  }
+
+  /* ---------- header ---------- */
+  .hero {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #1e3a8a 100%);
+    color: #fff;
+    border-radius: 18px;
+    padding: 36px 36px 30px;
+    margin-bottom: 24px;
+  }
+
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: #93c5fd;
+    margin-bottom: 10px;
+  }
+
+  .hero h1 {
+    margin: 0 0 8px;
+    font-size: 30px;
+    line-height: 1.35;
+    font-weight: 700;
+  }
+
+  .hero .sub {
+    margin: 0;
+    color: #cbd5e1;
+    font-size: 15px;
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px solid rgba(255,255,255,.14);
+    font-size: 13px;
+    color: #cbd5e1;
+  }
+
+  .meta b { color: #fff; font-weight: 600; }
+
+  /* ---------- summary cards ---------- */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px 18px 16px;
+  }
+
+  .card .label {
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  .card .value {
+    font-size: 27px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--go);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .card .note {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* ---------- sections ---------- */
+  section {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 24px 26px 26px;
+    margin-bottom: 18px;
+  }
+
+  section > h2 {
+    margin: 0 0 4px;
+    font-size: 19px;
+    font-weight: 700;
+  }
+
+  section > .lead {
+    margin: 0 0 18px;
+    color: var(--muted);
+    font-size: 13.5px;
+  }
+
+  .legend {
+    display: flex;
+    gap: 18px;
+    align-items: center;
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    display: inline-block;
+  }
+
+  .dot.go { background: var(--go); }
+  .dot.py { background: var(--py); }
+
+  /* ---------- tables ---------- */
+  .table-scroll { overflow-x: auto; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+
+  th, td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    text-align: right;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+
+  thead th {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--muted);
+    background: #f8fafc;
+    border-bottom: 1px solid var(--line);
+  }
+
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: #fbfcfe; }
+
+  td.name { font-weight: 500; }
+
+  .num {
+    direction: ltr;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  .ratio {
+    direction: ltr;
+    text-align: center;
+    font-weight: 700;
+    color: var(--go);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ratio.weak { color: var(--muted); font-weight: 600; }
+
+  .cell-bar {
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    align-items: center;
+    gap: 8px;
+    min-width: 180px;
+  }
+
+  .cell-bar .track {
+    display: block;
+    height: 7px;
+    background: #eef2f6;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .cell-bar .fill {
+    display: block;
+    height: 7px;
+    border-radius: 4px;
+    min-width: 2px;
+  }
+
+  .cell-bar .fill.go { background: var(--go); }
+  .cell-bar .fill.py { background: var(--py); }
+
+  .badge {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 1.7;
+  }
+
+  .badge.ok { background: var(--go-soft); color: #166534; }
+  .badge.warn { background: var(--py-soft); color: #92400e; }
+
+  /* ---------- callouts ---------- */
+  .note-box {
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: 13.5px;
+    margin-top: 16px;
+    border: 1px solid var(--line);
+    background: #f8fafc;
+  }
+
+  .note-box.warn {
+    background: #fffbeb;
+    border-color: #fde68a;
+    color: #78350f;
+  }
+
+  .note-box strong { color: var(--ink); }
+
+  code {
+    direction: ltr;
+    display: inline-block;
+    font-family: "Cascadia Mono", Consolas, monospace;
+    font-size: 12.5px;
+    background: #f1f5f9;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 0 5px;
+  }
+
+  ul.tight {
+    margin: 10px 0 0;
+    padding-inline-start: 20px;
+  }
+
+  ul.tight li { margin-bottom: 6px; }
+
+  /* ---------- verdict ---------- */
+  .verdict {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+
+  .verdict-item {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 16px;
+    background: #fbfcfe;
+  }
+
+  .verdict-item .k {
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-bottom: 2px;
+  }
+
+  .verdict-item .v {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 12.5px;
+    margin-top: 26px;
+    line-height: 2;
+  }
+
+  @media (max-width: 860px) {
+    .cards { grid-template-columns: repeat(2, 1fr); }
+    .verdict { grid-template-columns: 1fr; }
+    .hero { padding: 26px 22px; }
+    .hero h1 { font-size: 23px; }
+    section { padding: 20px 16px; }
+  }
+
+  @media print {
+    body { background: #fff; font-size: 12px; }
+    .wrap { max-width: none; padding: 0; }
+    .hero { border-radius: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    section, .card { break-inside: avoid; }
+    .bar, .dot { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div class="eyebrow">گزارش فنی — ارزیابی کارایی</div>
+    <h1>مقایسه‌ی نسخه‌ی Go و Python سرویس Food Diary</h1>
+    <p class="sub">بار یکسان، دیتابیس یکسان، اندپوینت‌های یکسان — اندازه‌گیری روی یک ماشین</p>
+    <div class="meta">
+      <span><b>سخت‌افزار:</b> Intel Core i7-12650H — ۱۰ هسته / ۱۶ ترد</span>
+      <span><b>سیستم:</b> Windows</span>
+      <span><b>تاریخ:</b> ۹ نوامبر ۲۰۲۶</span>
+    </div>
+  </header>
+
+  <div class="cards">
+    <div class="card">
+      <div class="label">توان عملیاتی خواندن</div>
+      <div class="value">۳۰.۶×</div>
+      <div class="note">حداکثر برتری Go نسبت به Python</div>
+    </div>
+    <div class="card">
+      <div class="label">تأخیر p95</div>
+      <div class="value">۲۱.۸×</div>
+      <div class="note">کمترین تأخیر در اندپوینت‌های دیتابیسی</div>
+    </div>
+    <div class="card">
+      <div class="label">حافظه در حالت بیکار</div>
+      <div class="value">۴.۰×</div>
+      <div class="note">۱۹.۸ مگابایت در برابر ۷۹.۷ مگابایت</div>
+    </div>
+    <div class="card">
+      <div class="label">خطای نوشتن هم‌زمان</div>
+      <div class="value">۰</div>
+      <div class="note">در برابر ۰.۵٪ خطای ۵۰۰ در Python</div>
+    </div>
+  </div>
+
+  <section>
+    <h2>۱. شرایط و روش تست</h2>
+    <p class="lead">برای اینکه مقایسه منصفانه باشد، هر دو سرویس دقیقاً با یک الگوی بار و روی کپی یکسان از دیتابیس اجرا شدند.</p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 26%">مورد</th>
+            <th style="width: 37%">نسخه‌ی Go</th>
+            <th style="width: 37%">نسخه‌ی Python</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name">پیکربندی اجرا</td>
+            <td>باینری پیش‌فرض، <span class="num">GOMAXPROCS=16</span></td>
+            <td><code>uvicorn</code> تک‌ورکر، تنظیمات پیش‌فرض</td>
+          </tr>
+          <tr>
+            <td class="name">دسترسی به دیتابیس</td>
+            <td>GORM + درایور pure-Go (بدون cgo)</td>
+            <td>SQLAlchemy 2.1 + <code>sqlite3</code></td>
+          </tr>
+          <tr>
+            <td class="name">نسخه‌ها</td>
+            <td>Go 1.26.5</td>
+            <td>Python 3.11.15 — FastAPI 0.133.1</td>
+          </tr>
+          <tr>
+            <td class="name">دیتابیس</td>
+            <td colspan="2" style="text-align: center;">کپی تازه از همان <code>food.db</code> (۱٬۷۴۲ ماده‌ی غذایی) برای هر سناریو</td>
+          </tr>
+          <tr>
+            <td class="name">ابزار بار</td>
+            <td colspan="2" style="text-align: center;">لودجنر نوشته‌شده با Go — اتصال keep-alive، بدون محدودیت GIL سمت کلاینت</td>
+          </tr>
+          <tr>
+            <td class="name">مدت هر سناریو</td>
+            <td colspan="2" style="text-align: center;">۵ ثانیه پس از یک ثانیه گرم‌کردن، سرور تنها (بدون سرویس دیگر روی ماشین)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>۲. ردپای منابع</h2>
+    <p class="lead">مصرف منابع در حالت بیکار و اوج مصرف زیر بار، به‌همراه زمان راه‌اندازی و حجم توزیع.</p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 30%">معیار</th>
+            <th style="width: 20%">Go</th>
+            <th style="width: 20%">Python</th>
+            <th style="width: 14%">نسبت</th>
+            <th style="width: 16%">برنده</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name">راه‌اندازی تا اولین پاسخ</td>
+            <td class="num">0.51 s</td>
+            <td class="num">1.04 s</td>
+            <td class="ratio">2.0×</td>
+            <td><span class="badge ok">Go</span></td>
+          </tr>
+          <tr>
+            <td class="name">حافظه‌ی بیکار (میانه)</td>
+            <td class="num">19.8 MB</td>
+            <td class="num">79.7 MB</td>
+            <td class="ratio">4.0×</td>
+            <td><span class="badge ok">Go</span></td>
+          </tr>
+          <tr>
+            <td class="name">اوج حافظه زیر بار</td>
+            <td class="num">26–38 MB</td>
+            <td class="num">78–91 MB</td>
+            <td class="ratio">~2.5×</td>
+            <td><span class="badge ok">Go</span></td>
+          </tr>
+          <tr>
+            <td class="name">تعداد ترد</td>
+            <td class="num">9</td>
+            <td class="num">12</td>
+            <td class="ratio weak">—</td>
+            <td><span class="badge ok">Go</span></td>
+          </tr>
+          <tr>
+            <td class="name">تعداد handle</td>
+            <td class="num">217</td>
+            <td class="num">368</td>
+            <td class="ratio">1.7×</td>
+            <td><span class="badge ok">Go</span></td>
+          </tr>
+          <tr>
+            <td class="name">حجم توزیع</td>
+            <td class="num">19.9 MB</td>
+            <td class="num">~22.7 MB + مفسر</td>
+            <td class="ratio weak">—</td>
+            <td><span class="badge ok">Go</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note-box">
+      نسخه‌ی Go یک فایل اجرایی مستقل است؛ نسخه‌ی Python علاوه بر پکیج‌ها به مفسر CPython و محیط مجازی نیاز دارد.
+    </div>
+  </section>
+
+  <section>
+    <h2>۳. توان عملیاتی (درخواست بر ثانیه)</h2>
+    <p class="lead">همه با هم‌زمانی ۳۲، به‌جز مسیرهای احراز هویت و نوشتن که با هم‌زمانی ۸ سنجیده شدند (هزینه‌ی محاسباتی/قفل دیتابیس).</p>
+    <div class="legend">
+      <span><i class="dot go"></i> Go</span>
+      <span><i class="dot py"></i> Python</span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 24%">اندپوینت</th>
+            <th style="width: 34%">Go (rps)</th>
+            <th style="width: 34%">Python (rps)</th>
+            <th style="width: 8%">نسبت</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name"><code>GET /</code></td>
+            <td><div class="cell-bar"><span class="num">115,390</span><span class="track"><i class="fill go" style="width:100%"></i></span></div></td>
+            <td><div class="cell-bar"><span class="num">3,771</span><span class="track"><i class="fill py" style="width:3.3%"></i></span></div></td>
+            <td class="ratio">30.6×</td>
+          </tr>
+          <tr>
+            <td class="name"><code>GET /openapi.json</code></td>
+            <td><div class="cell-bar"><span class="num">79,680</span><span class="track"><i class="fill go" style="width:69%"></i></span></div></td>
+            <td><div class="cell-bar"><span class="num">4,059</span><span class="track"><i class="fill py" style="width:3.5%"></i></span></div></td>
+            <td class="ratio">19.6×</td>
+          </tr>
+          <tr>
+            <td class="name"><code>GET /foods?limit=100</code></td>
+            <td><div class="cell-bar"><span class="num">9,859</span><span class="track"><i class="fill go" style="width:8.5%"></i></span></div></td>
+            <td><div class="cell-bar"><span class="num">324</span><span class="track"><i class="fill py" style="width:0.3%"></i></span></div></td>
+            <td class="ratio">30.5×</td>
+          </tr>
+          <tr>
+            <td class="name"><code>GET /foods/search</code></td>
+            <td><div class="cell-bar"><span class="num">6,791</span><span class="track"><i class="fill go" style="width:5.9%"></i></span></div></td>
+            <td><div class="cell-bar"><span class="num">390</span><span class="track"><i class="fill py" style="width:0.3%"></i></span></div></td>
+            <td class="ratio">17.4×</td>
+          </tr>
+          <tr>
+            <td class="name"><code>GET /meals</code></td>
+            <td><div class="cell-bar"><span class="num">7,172</span><span class="track"><i class="fill go" style="width:6.2%"></i></span></div></td>
+            <td><div class="cell-bar"><span class="num">639</span><span class="track"><i class="fill py" style="width:0.6%"></i></span></div></td>
+            <td class="ratio">11.2×</td>
+          </tr>
+          <tr>
+            <td class="name"><code>POST /auth/login</code></td>
+            <td><div class="cell-bar"><span class="num">255</span><span class="track"><i class="fill go" style="width:0.2%"></i></span></div></td>
+            <td><div class="cell-bar"><span class="num">95</span><span class="track"><i class="fill py" style="width:0.1%"></i></span></div></td>
+            <td class="ratio">2.7×</td>
+          </tr>
+          <tr>
+            <td class="name"><code>POST /meals</code></td>
+            <td><div class="cell-bar"><span class="num">308</span><span class="track"><i class="fill go" style="width:0.3%"></i></span></div></td>
+            <td><div class="cell-bar"><span class="num">127</span><span class="track"><i class="fill py" style="width:0.1%"></i></span></div></td>
+            <td class="ratio">2.4×</td>
+          </tr>
+          <tr>
+            <td class="name">بار ترکیبی (۲۲ خواندن + ۱۰ نوشتن)</td>
+            <td><div class="cell-bar"><span class="num">1,718</span><span class="track"><i class="fill go" style="width:1.5%"></i></span></div></td>
+            <td><div class="cell-bar"><span class="num">345</span><span class="track"><i class="fill py" style="width:0.3%"></i></span></div></td>
+            <td class="ratio">5.0×</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note-box">
+      اندپوینت‌های سبک (مثل <code>GET /</code>) تفاوت معماری را نشان می‌دهند؛ اندپوینت‌های دیتابیسی به سقف I/O نزدیک‌ترند و تفاوت کمتر می‌شود.
+    </div>
+  </section>
+
+  <section>
+    <h2>۴. تأخیر (میلی‌ثانیه)</h2>
+    <p class="lead">صدک ۹۵ در همان سناریوهای بخش قبل — تجربه‌ی واقعی کاربر زیر بار.</p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 28%">اندپوینت</th>
+            <th style="width: 18%">Go p95</th>
+            <th style="width: 18%">Python p95</th>
+            <th style="width: 12%">نسبت</th>
+            <th style="width: 24%">Python p99</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name"><code>GET /</code></td>
+            <td class="num">0.83</td>
+            <td class="num">9.49</td>
+            <td class="ratio">11.4×</td>
+            <td class="num">23.8</td>
+          </tr>
+          <tr>
+            <td class="name"><code>GET /foods</code></td>
+            <td class="num">6.9</td>
+            <td class="num">149.5</td>
+            <td class="ratio">21.8×</td>
+            <td class="num">175.8</td>
+          </tr>
+          <tr>
+            <td class="name"><code>GET /foods/search</code></td>
+            <td class="num">10.7</td>
+            <td class="num">123.3</td>
+            <td class="ratio">11.5×</td>
+            <td class="num">153.7</td>
+          </tr>
+          <tr>
+            <td class="name"><code>GET /meals</code></td>
+            <td class="num">8.6</td>
+            <td class="num">63.7</td>
+            <td class="ratio">7.4×</td>
+            <td class="num">75.7</td>
+          </tr>
+          <tr>
+            <td class="name"><code>POST /auth/login</code></td>
+            <td class="num">35.9</td>
+            <td class="num">108.7</td>
+            <td class="ratio">3.0×</td>
+            <td class="num">117.7</td>
+          </tr>
+          <tr>
+            <td class="name"><code>POST /meals</code></td>
+            <td class="num">28.2</td>
+            <td class="num">127.0</td>
+            <td class="ratio">4.5×</td>
+            <td class="num">762.2</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note-box warn">
+      <strong>دنباله‌ی تأخیر در نوشتن:</strong> در Python حداکثر تأخیر ثبت‌شده برای <code>POST /meals</code> به <span class="num">5.3 s</span> رسید (قفل SQLite)، در حالی که Go در همان تست حداکثر <span class="num">496 ms</span> داشت.
+    </div>
+  </section>
+
+  <section>
+    <h2>۵. مصرف CPU به‌ازای هر درخواست</h2>
+    <p class="lead">مجموع زمان پردازنده‌ی سرویس تقسیم بر تعداد درخواست‌های موفق — معیار هزینه‌ی واقعی هر درخواست.</p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 34%">اندپوینت</th>
+            <th style="width: 22%">Go</th>
+            <th style="width: 22%">Python</th>
+            <th style="width: 22%">نسبت</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name"><code>GET /</code></td>
+            <td class="num">0.052 ms</td>
+            <td class="num">0.268 ms</td>
+            <td class="ratio">5.2×</td>
+          </tr>
+          <tr>
+            <td class="name"><code>GET /foods</code></td>
+            <td class="num">0.77 ms</td>
+            <td class="num">4.32 ms</td>
+            <td class="ratio">5.6×</td>
+          </tr>
+          <tr>
+            <td class="name"><code>GET /foods/search</code></td>
+            <td class="num">1.08 ms</td>
+            <td class="num">3.67 ms</td>
+            <td class="ratio">3.4×</td>
+          </tr>
+          <tr>
+            <td class="name"><code>GET /meals</code></td>
+            <td class="num">0.93 ms</td>
+            <td class="num">2.03 ms</td>
+            <td class="ratio">2.2×</td>
+          </tr>
+          <tr>
+            <td class="name"><code>POST /auth/login</code></td>
+            <td class="num">31.1 ms</td>
+            <td class="num">83.1 ms</td>
+            <td class="ratio">2.7×</td>
+          </tr>
+          <tr>
+            <td class="name"><code>POST /meals</code></td>
+            <td class="num">1.70 ms</td>
+            <td class="num">4.55 ms</td>
+            <td class="ratio">2.7×</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>۶. مقیاس‌پذیری با افزایش هم‌زمانی</h2>
+    <p class="lead">اندپوینت <code>GET /meals</code>؛ برای هر سطح هم‌زمانی یک سرور تازه بالا آمده تا اثر گرم شدن قبلی حذف شود.</p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 12%">هم‌زمانی</th>
+            <th style="width: 22%">Go — rps</th>
+            <th style="width: 22%">Go — p50</th>
+            <th style="width: 22%">Python — rps</th>
+            <th style="width: 22%">Python — p50</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="num">8</td><td class="num">6,759</td><td class="num">1.1 ms</td><td class="num">599</td><td class="num">13.1 ms</td></tr>
+          <tr><td class="num">16</td><td class="num">6,919</td><td class="num">2.2 ms</td><td class="num">611</td><td class="num">25.9 ms</td></tr>
+          <tr><td class="num">24</td><td class="num">7,110</td><td class="num">3.2 ms</td><td class="num">636</td><td class="num">37.1 ms</td></tr>
+          <tr><td class="num">32</td><td class="num">7,208</td><td class="num">3.9 ms</td><td class="num">644</td><td class="num">48.1 ms</td></tr>
+          <tr><td class="num">48</td><td class="num">7,510</td><td class="num">5.5 ms</td><td class="num">618</td><td class="num">75.3 ms</td></tr>
+          <tr><td class="num">64</td><td class="num">8,018</td><td class="num">7.0 ms</td><td class="num">603</td><td class="num">104.1 ms</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note-box">
+      Go با افزایش هم‌زمانی <strong>سریع‌تر</strong> می‌شود (تا ۸٬۰۱۸ rps)؛ Python از حدود ۶۴۰ rps سقف می‌خورد و فقط صف طولانی‌تر و تأخیر بیشتر می‌شود.
+    </div>
+  </section>
+
+  <section>
+    <h2>۷. پایداری در بار پیوسته (۳۰ ثانیه، هم‌زمانی ۱۶)</h2>
+    <p class="lead">آزمون طولانی‌تر برای بررسی نشتی حافظه و افت کارایی در طول زمان.</p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 34%">معیار</th>
+            <th style="width: 22%">Go</th>
+            <th style="width: 22%">Python</th>
+            <th style="width: 22%">نسبت</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name">درخواست بر ثانیه</td>
+            <td class="num">6,907</td>
+            <td class="num">599</td>
+            <td class="ratio">11.5×</td>
+          </tr>
+          <tr>
+            <td class="name">تأخیر p95</td>
+            <td class="num">3.4 ms</td>
+            <td class="num">32.6 ms</td>
+            <td class="ratio">9.7×</td>
+          </tr>
+          <tr>
+            <td class="name">حافظه شروع → پایان</td>
+            <td class="num">34.3 → 34.4 MB</td>
+            <td class="num">86.1 → 86.3 MB</td>
+            <td class="ratio weak">—</td>
+          </tr>
+          <tr>
+            <td class="name">رشد حافظه</td>
+            <td class="num">+0.1 MB</td>
+            <td class="num">+0.1 MB</td>
+            <td class="ratio weak">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note-box">
+      هیچ‌کدام نشتی حافظه ندارند؛ مصرف هر دو در طول ۳۰ ثانیه تقریباً ثابت ماند.
+    </div>
+  </section>
+
+  <section>
+    <h2>۸. نوشتن در دیتابیس — حساس‌ترین بخش</h2>
+    <p class="lead">درج ۲٬۰۰۰ وعده‌ی متمایز از طریق API، با دیتابیس تازه در هر اجرا.</p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 28%">سناریو</th>
+            <th style="width: 24%">Go</th>
+            <th style="width: 24%">Python</th>
+            <th style="width: 24%">وضعیت خطا</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name">۲٬۰۰۰ وعده — هم‌زمانی ۸</td>
+            <td class="num">7.1 s — 282/s</td>
+            <td class="num">21.5 s — 93/s</td>
+            <td><span class="badge ok">Go: ۰</span> <span class="badge warn">Python: ۱</span></td>
+          </tr>
+          <tr>
+            <td class="name">۲٬۰۰۰ وعده — هم‌زمانی ۲۴</td>
+            <td class="num">7.8 s — 258/s</td>
+            <td class="num">14.3 s — 140/s</td>
+            <td><span class="badge ok">Go: ۰</span> <span class="badge warn">Python: ۱۰–۱۳</span></td>
+          </tr>
+          <tr>
+            <td class="name">یک وعده با ۱۰۰ آیتم</td>
+            <td class="num">9.3 ms</td>
+            <td class="num">47.3 ms</td>
+            <td><span class="badge ok">هر دو موفق (۵.۱×)</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note-box warn">
+      <strong>خطای تکرارشونده در Python:</strong> زیر نوشتن هم‌زمان، حدود <strong>۰.۵٪</strong> درخواست‌ها با خطای ۵۰۰ برمی‌گردند:
+      <br>
+      <code>sqlalchemy.exc.TimeoutError: QueuePool limit of size 5 overflow 10 reached</code>
+      <br>
+      <code>sqlite3.OperationalError: database is locked</code>
+      <br>
+      این رفتار مربوط به پیکربندی پیش‌فرض SQLAlchemy/SQLite در نسخه‌ی Python است. نسخه‌ی Go با یک کانکشن نویسنده، تراکنش <code>immediate</code> و <code>busy_timeout=30000</code> این حالت را ندارد و در همان بار صفر خطا داد.
+    </div>
+  </section>
+
+  <section>
+    <h2>۹. جمع‌بندی</h2>
+    <p class="lead">خلاصه‌ی برتری هر نسخه به تفکیک معیار.</p>
+    <div class="verdict">
+      <div class="verdict-item">
+        <div class="k">توان عملیاتی</div>
+        <div class="v">Go — از ۲.۴× تا ۳۰.۶× بیشتر</div>
+      </div>
+      <div class="verdict-item">
+        <div class="k">تأخیر p95</div>
+        <div class="v">Go — از ۳× تا ۲۲× کمتر</div>
+      </div>
+      <div class="verdict-item">
+        <div class="k">مصرف CPU هر درخواست</div>
+        <div class="v">Go — از ۲.۲× تا ۵.۶× کمتر</div>
+      </div>
+      <div class="verdict-item">
+        <div class="k">حافظه</div>
+        <div class="v">Go — ۴× سبک‌تر در بیکاری</div>
+      </div>
+      <div class="verdict-item">
+        <div class="k">راه‌اندازی و توزیع</div>
+        <div class="v">Go — ۲× سریع‌تر، یک فایل مستقل</div>
+      </div>
+      <div class="verdict-item">
+        <div class="k">پایداری زیر نوشتن هم‌زمان</div>
+        <div class="v">Go — بدون خطا در برابر ۰.۵٪ خطای ۵۰۰</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>۱۰. نکات تفسیر نتایج</h2>
+    <ul class="tight">
+      <li>نسخه‌ی Python با <strong>یک ورکر</strong> سنجیده شده (پیش‌فرض). با <code>--workers N</code> توان آن بالا می‌رود، اما مصرف حافظه هم به همان نسبت زیاد می‌شود (هر ورکر حدود ۸۰ مگابایت).</li>
+      <li>لاگ دسترسی uvicorn روی اندپوینت‌های سبک گران است: <code>GET /</code> با <code>--no-access-log</code> از ۳٬۷۷۱ به ۵٬۲۲۷ rps می‌رسد (<strong>+۳۸٪</strong>)؛ روی اندپوینت‌های دیتابیسی تفاوت محسوسی ندارد.</li>
+      <li>اعداد مطلق به سخت‌افزار وابسته‌اند؛ آنچه اهمیت دارد نسبت‌هاست که با بار و دیتابیس یکسان روی یک ماشین گرفته شده.</li>
+      <li>هر دو نسخه دقیقاً همان اندپوینت‌ها، همان اعتبارسنجی و همان قالب پاسخ را دارند؛ تفاوت‌ها فقط در کارایی و پایداری است.</li>
+    </ul>
+  </section>
+
+  <footer>
+    گزارش بنچمارک سرویس Food Diary — نسخه‌ی Go در برابر نسخه‌ی Python<br>
+    اندازه‌گیری روی کپی دیتابیس؛ داده‌ی اصلی دست‌نخورده باقی مانده است.
+  </footer>
+
+</div>
+</body>
+</html>
